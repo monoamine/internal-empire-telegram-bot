@@ -1,0 +1,67 @@
+import telepot
+import os
+
+from telepot.loop import MessageLoop
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchaudio as ta
+
+from chatterbox.tts import ChatterboxTTS
+
+# -------------------------------------------------------------------------------------------------
+
+# Detect device (Mac with M1/M2/M3/M4)
+
+device = "mps" if torch.backends.mps.is_available() else "cpu"
+map_location = torch.device(device)
+
+torch_load_original = torch.load
+
+def patched_torch_load(*args, **kwargs):
+    if 'map_location' not in kwargs:
+        kwargs['map_location'] = map_location
+    return torch_load_original(*args, **kwargs)
+
+torch.load = patched_torch_load
+
+model = ChatterboxTTS.from_pretrained(device=device)
+
+# -------------------------------------------------------------------------------------------------
+
+def generate_voice(out_file, reference_file):
+    text = "Hi, Anna. I'm your new voice assistant."
+    wav = model.generate(text, audio_prompt_path=reference_file)
+
+    if os.path.exists(out_file):
+        os.remove(out_file)
+
+    ta.save(out_file, wav, model.sr)
+
+def handle(msg):
+    REF_AUDIO = "ref_audio.mp3"
+    RESULT_AUDIO = "voice.wav"
+
+    chat_id = msg['chat']['id']
+    command = msg['text']
+
+    if command == '/voice':
+        generate_voice(RESULT_AUDIO, REF_AUDIO)
+
+        with open(RESULT_AUDIO, 'rb') as voice_file:
+            bot.sendVoice(chat_id, voice=voice_file)
+
+    cmd_parts = command.split()
+    cmd = cmd_parts[0]
+    arg = cmd_parts[1]
+    bot.sendMessage(chat_id, arg)
+
+# -------------------------------------------------------------------------------------------------
+
+token = os.environ['BOT_TOKEN']
+bot = telepot.Bot(token)
+
+print(f'BOT_TOKEN=${token}')
+
+MessageLoop(bot, handle).run_forever()
