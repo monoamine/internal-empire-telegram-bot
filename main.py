@@ -1,3 +1,4 @@
+import openai
 import telepot
 import os
 
@@ -28,11 +29,16 @@ torch.load = patched_torch_load
 
 model = ChatterboxTTS.from_pretrained(device=device)
 
+client = openai.Client()
+
 # -------------------------------------------------------------------------------------------------
 
 def generate_voice(out_file, reference_file):
-    text = "Hi, Anna. I'm your new voice assistant."
-    wav = model.generate(text, audio_prompt_path=reference_file)
+    request = "Generate a sentence to remind me about my QA course homework."
+    reminder = client.responses.create(model="gpt-5", input=request)
+
+    reminder_text = reminder.output_text
+    wav = model.generate(reminder_text, audio_prompt_path=reference_file)
 
     if os.path.exists(out_file):
         os.remove(out_file)
@@ -52,16 +58,10 @@ def handle(msg):
         with open(RESULT_AUDIO, 'rb') as voice_file:
             bot.sendVoice(chat_id, voice=voice_file)
 
-    cmd_parts = command.split()
-    cmd = cmd_parts[0]
-    arg = cmd_parts[1]
-    bot.sendMessage(chat_id, arg)
-
 # -------------------------------------------------------------------------------------------------
 
+openai.api_key = os.environ['OPENAI_API_KEY']
 token = os.environ['BOT_TOKEN']
 bot = telepot.Bot(token)
-
-print(f'BOT_TOKEN=${token}')
 
 MessageLoop(bot, handle).run_forever()
