@@ -1,0 +1,4 @@
+chatterbox-tts==0.1.2
+telepot==12.7
+torch==2.6.0
+torchaudio==2.6.0
